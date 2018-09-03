@@ -6,76 +6,83 @@ const excel = require('node-excel-export');
 const file = process.argv[2];
 const fileDelimiter = ',';
 
-var groupedPassings = {};
-var teams           = [];
-var gotStart        = false;
-var finishTimeMs    = null;
-
 var parser = parse({
   delimiter: fileDelimiter,
   columns: true,
   skip_lines_with_error: false,
 });
 
-var passingGrouper = transform(function(data){
-  // Skip until green flag
-  if(!gotStart){
-    if(data["Naam"] == "Groene Vlag"){
-      gotStart = true;
+
+var teams         = [];
+var teamPassings  = {};
+var greenFlag     = false;
+var transformer   = transform(function(currentPassing){
+  // Skip until after green flag
+  if(!greenFlag){
+    if(currentPassing["Naam"] === "Groene Vlag"){
+        greenFlag = true;
     }
     return;
   }
 
-  // Save finish flag time
-  if(data["Naam"] == "Finish Vlag"){
-    finishTimeMs = timeToMs(data["Verstreken Tijd"]);
+  if(currentPassing["Naam"] === "Finish Vlag" || currentPassing["Naam"] === "Extra Vlag"){
     return;
   }
 
-  // Get team based on number column
-  var team = data["Nr."].split("-")[0];
+  // Get team identifier
+  var team = currentPassing["Nr."].split("-")[0];
 
-  // Save team and init group for passings
-  if(!(team in groupedPassings)){
-    groupedPassings[team] = [];
-    teams.push(team);
+  // Check for existing team passings
+  if(!(team in teamPassings)){
+      // No passings, init group for passings and add team to teams array
+      teamPassings[team] = [currentPassing];
+      teams.push(team);
+      return;
   }
 
-  // Add data to the group
-  groupedPassings[team].push(data);
+  // calculate laptime for previous team passing
+  var previousTimeMs  = timeToMs(teamPassings[team].slice(-1)[0]["Huidige Tijd"]);
+  var currentTimeMs   = timeToMs(currentPassing["Huidige Tijd"]);
+
+  // Account for day jump if it occurs
+  if(previousTimeMs > currentTimeMs){
+      currentTimeMs += 86400000;
+  }
+
+  // Set calculated laptime for previous passing
+  currentPassing["Calculated laptime"] = laptime(previousTimeMs, currentTimeMs);
+  currentPassing["Lap started at"] = teamPassings[team].slice(-1)[0]["Huidige Tijd"];
+
+  // Add the current passing to the list of team passings
+  teamPassings[team].push(currentPassing);
 });
 
-passingGrouper.on('finish', function(){
+transformer.on('finish', function(){
+  // Build Excel sheet for each team
   teams.forEach(function(team){
-    var previousStartTimeMs = 0;
-    groupedPassings[team].forEach(function(passing, passingIndex){
-      // Save start time and person
-      if(passing["Verstreken Tijd"] == ""){
-        return true;
-      }
-      currentTimeToMs = timeToMs(passing["Verstreken Tijd"]);
-      if(passingIndex > 0){
-        groupedPassings[team][passingIndex-1]["Rondetijd"]=laptime(previousStartTimeMs, currentTimeToMs);
-      }
-      previousStartTimeMs = currentTimeToMs;
-    });
-    groupedPassings[team][groupedPassings[team].length-1]["Rondetijd"] = laptime(previousStartTimeMs, finishTimeMs);
-
+    printPassings = teamPassings[team].slice(1);//Remove first passing since we store laptimes in the second passing
     const report = excel.buildExport(
-      [ // <- Notice that this is an array. Pass multiple sheets to create multi sheet report
+      [
         {
-          name: 'Results', // <- Specify sheet name (optional)
+          name: 'Rondetijden 24KIKA 2018 team ' + team,
           specification: {
+              "Lap started at": {
+              displayName: 'Starttijd',
+                  headerStyle: {},
+                  width:125
+              },
             "Naam": {
               displayName: 'Naam',
+                headerStyle: {},
               width: 190
             },
-            "Rondetijd": {
+            'Calculated laptime': {
               displayName: 'Rondetijd',
+                headerStyle: {},
               width: 125
             },
           },
-          data: groupedPassings[team] // <-- Report data
+          data: printPassings
         }
       ]
     );
@@ -83,6 +90,7 @@ passingGrouper.on('finish', function(){
     fs.writeFileSync("Rondetijden 24KIKA 2018 team " + team + '.xlsx',  report, 'utf-8');
   });
 });
+
 
 const laptime = function(startTimeMs, finishTimeMs){
   return msToTime(laptimeMs(startTimeMs, finishTimeMs));
@@ -120,4 +128,4 @@ const timeToMs = function(time)
 }
 
 
-fs.createReadStream(file).pipe(parser).pipe(passingGrouper);
+fs.createReadStream(file).pipe(parser).pipe(transformer);
