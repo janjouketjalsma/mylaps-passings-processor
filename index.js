@@ -84,15 +84,15 @@ passingGrouper.on('finish', function(){
   });
 });
 
-var laptime = function(startTimeMs, finishTimeMs){
+const laptime = function(startTimeMs, finishTimeMs){
   return msToTime(laptimeMs(startTimeMs, finishTimeMs));
 };
 
-var laptimeMs = function(startTimeMs, finishTimeMs){
+const laptimeMs = function(startTimeMs, finishTimeMs){
   return finishTimeMs - startTimeMs;
 };
 
-var msToTime = function(timeInMs, excludeHundreds) {
+const msToTime = function(timeInMs, excludeHundreds) {
   var delim = ":";
   var minutes = Math.floor(timeInMs / (1000 * 60));
   var seconds = Math.floor(timeInMs / 1000 % 60);
@@ -107,7 +107,7 @@ var msToTime = function(timeInMs, excludeHundreds) {
   return ret;
 }
 
-function timeToMs(time)
+const timeToMs = function(time)
 {
     let startTime = time;
     let startTimeParts = startTime.split(":");
