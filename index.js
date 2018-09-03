@@ -16,6 +16,7 @@ var parser = parse({
 var teams         = [];
 var teamPassings  = {};
 var greenFlag     = false;
+var finishFlag    = false;
 var transformer   = transform(function(currentPassing){
   // Skip until after green flag
   if(!greenFlag){
@@ -25,7 +26,14 @@ var transformer   = transform(function(currentPassing){
     return;
   }
 
-  if(currentPassing["Naam"] === "Finish Vlag" || currentPassing["Naam"] === "Extra Vlag"){
+  // Skip extra flag
+  if(currentPassing["Naam"] === "Extra Vlag"){
+    return;
+  }
+
+  // Skip everything on finish flag
+  if(currentPassing["Naam"] === "Finish Vlag" || finishFlag){
+    finishFlag = true;
     return;
   }
 
