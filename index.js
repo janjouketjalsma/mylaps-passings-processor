@@ -2,6 +2,7 @@ const parse = require('csv-parse');
 const transform = require('stream-transform');
 const fs = require('fs');
 const excel = require('node-excel-export');
+const sanitize = require("sanitize-filename");
 
 const file = process.argv[2];
 const fileDelimiter = ',';
@@ -94,8 +95,9 @@ transformer.on('finish', function(){
         }
       ]
     );
-
-    fs.writeFileSync("Rondetijden 24KIKA 2018 team " + team + '.xlsx',  report, 'utf-8');
+    let fileName = sanitize("Rondetijden 24KIKA 2017 team " + team) + '.xlsx';
+    console.log("Writing file \"" + fileName + "\"");
+    fs.writeFileSync(fileName,  report, 'utf-8');
   });
 });
 
